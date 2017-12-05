@@ -13,3 +13,7 @@ rustc-hex = "1.0"
 
 [build-dependencies]
 solc = { path = "../solc", version = "0.1" }
+
+[[bin]]
+path = "src/private_contract.rs"
+name = "private_contract"
