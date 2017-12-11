@@ -40,13 +40,29 @@ impl Evm {
         }
     }
 
+    pub fn new_byzantium() -> Self {
+        let evm = EvmTestClient::new(&*::BYZANTIUM).expect("Invalid spec given; qed");
+        Evm {
+            evm,
+            sender: 0.into(),
+            contract_address: None,
+            gas: 1_000_000.into(),
+            gas_price: 0.into(),
+            value: 0.into(),
+            logs: vec![],
+        }
+    }
+
     fn tracers(&self) -> (trace::PrintingTracer, trace::PrintingTracer) {
-        Default::default()
+        let (mut tr1, mut tr2) = (trace::PrintingTracer::default(), trace::PrintingTracer::default());
+        tr1.vm_enabled = true;
+        tr2.vm_enabled = true;
+        (tr1, tr2)
     }
 
     fn env_info(&self) -> client::EnvInfo {
         client::EnvInfo {
-            number: 1u64,
+            number: 5_000_000u64,
             author: 0.into(),
             timestamp: 1u64,
             difficulty: 1.into(),
@@ -74,7 +90,8 @@ impl Evm {
                 self.contract_address = contract_address.map(|x| (&*x).into());
                 Ok(Default::default())
             },
-            TransactResult::Err { .. } => {
+            err => {
+                println!("{:?}", err);
                 Err(())
             },
         }
