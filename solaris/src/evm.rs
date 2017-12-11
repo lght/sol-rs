@@ -90,8 +90,8 @@ impl Evm {
                 self.contract_address = contract_address.map(|x| (&*x).into());
                 Ok(Default::default())
             },
-            err => {
-                println!("{:?}", err);
+            err @ TransactResult::Err { .. } => {
+                println!("Unable to deploy contract: {:?}", err);
                 Err(())
             },
         }
@@ -132,7 +132,10 @@ impl Evm {
             data: vec![],
         }.fake_sign(sender);
 
-        self.evm.transact(&env_info, transaction, ethcore::trace::NoopTracer, ethcore::trace::NoopVMTracer);
+        match self.evm.transact(&env_info, transaction, ethcore::trace::NoopTracer, ethcore::trace::NoopVMTracer) {
+            e @ TransactResult::Err { .. } => panic!("Unable to top-up account: {:?}", e),
+            _ => {},
+        }
 
         self
     }
@@ -202,14 +205,26 @@ impl<'a> ethabi::Caller for &'a mut Evm {
 
         let tracers = self.tracers();
         match self.evm.transact(&env_info, transaction, tracers.0, tracers.1) {
-            TransactResult::Ok { output, gas_left, logs, .. } => {
+            TransactResult::Ok { output, gas_left, logs, outcome, .. } => {
                 self.logs.extend(logs);
 
-                // TODO [ToDr] Shitty detection of failed calls?
-                if gas_left > 0.into() {
-                    Ok(output)
-                } else {
-                    Err(format!("Call failed."))
+                match outcome {
+                    ethcore::receipt::TransactionOutcome::Unknown |
+                    ethcore::receipt::TransactionOutcome::StateRoot(_) => {
+                        // TODO [ToDr] Shitty detection of failed calls?
+                        if gas_left > 0.into() {
+                            Ok(output)
+                        } else {
+                            Err(format!("Call went out of gas."))
+                        }
+                    },
+                    ethcore::receipt::TransactionOutcome::StatusCode(status) => {
+                        if status == 1 {
+                            Ok(output)
+                        } else {
+                            Err(format!("Call failed with status code: {}", status))
+                        }
+                    },
                 }
             },
             err => {
