@@ -20,3 +20,7 @@ solc = { path = "../solc", version = "0.1" }
 [[bin]]
 path = "src/private_contract.rs"
 name = "private_contract"
+
+[[bin]]
+path = "src/dummy.rs"
+name = "dummy"

@@ -11,7 +11,7 @@ extern crate secp256k1;
 extern crate tiny_keccak;
 
 fn main() {
-	solaris::main(include_bytes!("../res/PrivateContract_sol_PrivateContract.abi"));
+	solaris::main(include_bytes!("../res/PrivateContract.abi"));
 }
 
 #[cfg(test)]
@@ -20,9 +20,9 @@ mod tests {
 	use rustc_hex::{FromHex, ToHex};
 	use secp256k1::key::{SecretKey, PublicKey};
 
-	use_contract!(private_contract, "PrivateContract", "res/PrivateContract_sol_PrivateContract.abi");
+	use_contract!(private_contract, "PrivateContract", "res/PrivateContract.abi");
 
-	pub struct Validator {
+	pub struct Account {
 		address: types::Address,
 		private: SecretKey,
 		public: PublicKey,
@@ -50,12 +50,12 @@ mod tests {
 
 		s.copy_from_slice(&sigdata[0..32]);
 		r.copy_from_slice(&sigdata[32..64]);
-		let v: [u8; 32] = sol::raw::uint(recid.to_i32() as u64); 
+		let v: [u8; 32] = sol::raw::uint((recid.to_i32() as u8) as u64); 
 
 		Secp256k1Parts{v: v, r: r, s: s}
 	}
 
-	pub fn create_validator() -> Validator { 
+	pub fn create_account() -> Account { 
 		use rand::os::OsRng;
 		use secp256k1::Secp256k1;
 		use tiny_keccak::keccak256;
@@ -71,17 +71,27 @@ mod tests {
 			&keccak256(vpub.serialize_vec(&secp, false).as_slice())[12..]
 			);
 
-		Validator {
+		Account {
 			address: vaddr.into(),
 			private: vprv, 
 			public: vpub,
 		}
 	}
 
-	fn setup() -> (solaris::evm::Evm, private_contract::PrivateContract, Vec<Validator>) {
+    pub fn nonced_hash(data: &[u8], nonce: u64) -> [u8; 32] {
+        use solaris::sol;
+		use tiny_keccak::keccak256;
 
+        let mut datanonce = Vec::new();
+        datanonce.extend(keccak256(data).iter());
+        datanonce.extend(sol::raw::uint(nonce).iter());
+
+        keccak256(&datanonce)
+    }
+
+	fn setup() -> (solaris::evm::Evm, private_contract::PrivateContract, Vec<Account>) {
 		let contract = private_contract::PrivateContract::default();
-		let code = include_str!("../res/PrivateContract_sol_PrivateContract.bin");
+		let code = include_str!("../res/PrivateContract.bin");
 	
 		// PrivateContract initialization arguments
 		let init_code = vec![];
@@ -89,13 +99,13 @@ mod tests {
 	
 		let mut evm = solaris::evm();
 
-		let mut vals: Vec<Validator> = Vec::new();
+		let mut vals: Vec<Account> = Vec::new();
 
-		for i in 0..3 {
-			vals.push(create_validator());
+		for _i in 0..3 {
+			vals.push(create_account());
 		}
 
-		let owner = 3.into();
+		let owner = 666.into();
 		let _address = evm.with_sender(owner).deploy(
 			&contract.constructor(
 				code.from_hex().unwrap(),
@@ -115,17 +125,22 @@ mod tests {
 
 	#[test]
 	fn it_should_allow_state_change_if_all_the_signatures_are_ok() {
+        use solaris::sol;
+
 		let (mut evm, contract, validators) = setup();
 		let pcon = contract.functions();
 
 		assert_eq!(pcon.state().call(&mut evm).unwrap().to_hex(), "", "Initial State should be empty");
 
 		let new_state = "ffaabb55ffaabb55ffaabb55ffaabb55ffaabb55ffaabb55ffaabb55ffaabb55".from_hex().unwrap();
+        let new_state_hash = nonced_hash(&new_state, 1);
 
 		let mut parts: Vec<Secp256k1Parts> = Vec::new();
-		for v in validators {
+
+        let val_len = validators.len();
+		for i in 0..val_len {
 			parts.push(
-				secp256k1_signature_parts(&v.private, new_state.as_slice())
+				secp256k1_signature_parts(&validators[i].private, &new_state_hash)
 			);
 		}
 
@@ -146,7 +161,15 @@ mod tests {
 			&mut evm)
 		.unwrap();
 
-		let actual_state = pcon.state().call(&mut evm).unwrap().to_hex();
-		assert_eq!(new_state.to_hex(), actual_state, "Initial State should be {}, got {}", new_state.to_hex(), actual_state);
+		//let actual_state = pcon.state().call(&mut evm).unwrap().to_hex();
+
+        let cnhash = pcon.nonced_state_hash().call(&mut evm).unwrap();
+        assert_eq!(new_state_hash, cnhash);
+
+        for (i, v) in validators.iter().enumerate() {
+            let rec = pcon.recovered_address().call(sol::raw::uint(i as u64), &mut evm).unwrap();
+            assert_eq!(rec.to_hex(), v.address.to_hex());
+        }
+		//assert_eq!(new_state.to_hex(), actual_state, "Initial State should be {}, got {}", new_state.to_hex(), actual_state);
 	}
 }

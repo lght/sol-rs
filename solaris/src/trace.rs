@@ -7,7 +7,7 @@ use vm;
 
 #[derive(Default, Debug)]
 pub struct PrintingTracer {
-    vm_enabled: bool,
+    pub vm_enabled: bool,
     depth: usize,
     pc: usize,
     instruction: u8,

@@ -17,6 +17,7 @@ pub mod unit;
 
 lazy_static! {
     pub static ref FOUNDATION: ethcore::spec::Spec = ethcore::ethereum::new_foundation(&::std::env::temp_dir());
+    pub static ref BYZANTIUM: ethcore::spec::Spec = ethcore::ethereum::new_byzantium_test();
 }
 
 pub fn main(_json_bytes: &[u8]) {
@@ -27,3 +28,6 @@ pub fn evm() -> evm::Evm {
     evm::Evm::default()
 }
 
+pub fn evm_byzantium() -> evm::Evm {
+    evm::Evm::new_byzantium()
+}
