@@ -50,7 +50,14 @@ mod tests {
 
 		s.copy_from_slice(&sigdata[0..32]);
 		r.copy_from_slice(&sigdata[32..64]);
-		let v: [u8; 32] = sol::raw::uint((recid.to_i32() as u8) as u64); 
+        let raw_v = match recid.to_i32() { 
+            0 | 2 => 0,
+            1 | 3 => 1,
+            _ => 0,
+        };
+        // Convert recovery id to solidity uint
+        // add 27: electrum standard for negative (27) / positive (28) ec curves 
+		let v: [u8; 32] = sol::raw::uint(raw_v as u64 + 27); 
 
 		Secp256k1Parts{v: v, r: r, s: s}
 	}
@@ -119,9 +126,29 @@ mod tests {
 	}
 	
 	#[test]
+    #[ignore]
 	fn it_should_have_inited() {
 		let (_evm, _contract, _validators) = setup();
 	}
+
+    #[test]
+    #[ignore]
+    fn it_should_set_validators() {
+        use solaris::sol;
+
+        let (mut evm, contract, validators) = setup();
+		let pcon = contract.functions();
+
+		assert_eq!(pcon.state().call(&mut evm).unwrap().to_hex(), "", "Initial State should be empty");
+
+        for (i, val) in validators.iter().enumerate() {
+            let loc_val = val.address.as_ref();
+            let con_val = pcon.validators().call(sol::raw::uint(i as u64), &mut evm).unwrap();
+            assert_eq!(loc_val,
+                        con_val,
+                        "Local validator: {}\n\t should equal\n contract validator: {}", loc_val.to_hex(), con_val.to_hex());
+        }
+    }
 
 	#[test]
 	fn it_should_allow_state_change_if_all_the_signatures_are_ok() {
@@ -161,8 +188,6 @@ mod tests {
 			&mut evm)
 		.unwrap();
 
-		//let actual_state = pcon.state().call(&mut evm).unwrap().to_hex();
-
         let cnhash = pcon.nonced_state_hash().call(&mut evm).unwrap();
         assert_eq!(new_state_hash, cnhash);
 
@@ -170,6 +195,5 @@ mod tests {
             let rec = pcon.recovered_address().call(sol::raw::uint(i as u64), &mut evm).unwrap();
             assert_eq!(rec.to_hex(), v.address.to_hex());
         }
-		//assert_eq!(new_state.to_hex(), actual_state, "Initial State should be {}, got {}", new_state.to_hex(), actual_state);
 	}
 }
