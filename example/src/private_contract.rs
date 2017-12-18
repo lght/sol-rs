@@ -51,9 +51,9 @@ mod tests {
 		s.copy_from_slice(&sigdata[0..32]);
 		r.copy_from_slice(&sigdata[32..64]);
         let raw_v = match recid.to_i32() { 
-            0 | 2 => 0,
-            1 | 3 => 1,
-            _ => 0,
+            0 => 0,
+            1 => 1,
+            _ => panic!("Recovery ID should always be 0 or 1. ID 2 & 3 are invalid, qed."),
         };
         // Convert recovery id to solidity uint
         // add 27: electrum standard for negative (27) / positive (28) ec curves 
