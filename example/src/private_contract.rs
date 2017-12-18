@@ -45,11 +45,11 @@ mod tests {
 			.unwrap()
 			.serialize_compact(&secp);
 
-		let mut s = [0u8; 32];
 		let mut r = [0u8; 32];
+		let mut s = [0u8; 32];
 
-		s.copy_from_slice(&sigdata[0..32]);
-		r.copy_from_slice(&sigdata[32..64]);
+		r.copy_from_slice(&sigdata[0..32]);
+		s.copy_from_slice(&sigdata[32..64]);
         let raw_v = match recid.to_i32() { 
             0 => 0,
             1 => 1,
@@ -189,11 +189,23 @@ mod tests {
 		.unwrap();
 
         let cnhash = pcon.nonced_state_hash().call(&mut evm).unwrap();
-        assert_eq!(new_state_hash, cnhash);
+        let ns_str = new_state_hash.to_hex();
+        let ch_str = cnhash.to_hex();
+        assert_eq!(ns_str, ch_str,
+                   "Submitted hash: {:?} \nshould equal \nContract hash: {:?}",
+                   ns_str,
+                   ch_str
+                  );
 
         for (i, v) in validators.iter().enumerate() {
             let rec = pcon.recovered_address().call(sol::raw::uint(i as u64), &mut evm).unwrap();
-            assert_eq!(rec.to_hex(), v.address.to_hex());
+            let rec_str = rec.to_hex();
+            let vadr_str = v.address.to_hex();
+            assert_eq!(rec_str, vadr_str,
+                        "Recovered address: {:?} \nshould equal \nLocal validator address: {:?}",
+                        rec_str,
+                        vadr_str
+                      );
         }
 	}
 }
