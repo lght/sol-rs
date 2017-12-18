@@ -126,13 +126,11 @@ mod tests {
 	}
 	
 	#[test]
-    #[ignore]
 	fn it_should_have_inited() {
 		let (_evm, _contract, _validators) = setup();
 	}
 
     #[test]
-    #[ignore]
     fn it_should_set_validators() {
         use solaris::sol;
 
